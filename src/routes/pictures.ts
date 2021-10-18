@@ -62,6 +62,7 @@ const mime: Record<string, string> = {
 	jpg: "image/jpeg",
 	png: "image/png",
 	svg: "image/svg+xml",
+	webp: "image/webp",
 	js: "application/javascript",
 };
 
@@ -112,28 +113,29 @@ router.get("/:picture", async (req: Request, res: Response) => {
 				greyscale,
 			};
 			const getPicture = async () => {
-				console.log("not cached");
 				const resized = await resize(parameters);
-				const pathToFile = id() + path.extname(file.toLowerCase());
+				const pathToFile = id() + ".webp"; //path.extname(file.toLowerCase());
 				fs.writeFile(
 					path.join(cached_folder, pathToFile),
 					resized,
 					(err) => {
 						if (err) {
-							return console.log(err);
+							console.log(err);
 						} else {
+							// await redis.del(JSON.stringify({ parameters }));
 							redis.set(JSON.stringify(parameters), pathToFile);
 						}
 					}
 				);
 
-				res.set("Content-Type", type);
+				res.set("Content-Type", "image/webp");
 				res.status(200).end(resized);
 			};
 			redis.get(JSON.stringify(parameters), async (_, value) => {
 				if (value !== null) {
-					console.log("cache hit ", value);
-					res.set("Content-Type", type);
+					// is cached
+					// console.log("cached ", value);
+					res.set("Content-Type", "image/webp");
 					res.status(200).sendFile(
 						value,
 						{ root: cached_folder },
@@ -145,6 +147,8 @@ router.get("/:picture", async (req: Request, res: Response) => {
 						}
 					);
 				} else {
+					// not cached
+					// console.log("not cached ");
 					getPicture();
 				}
 			});

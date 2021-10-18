@@ -25,7 +25,8 @@ const resize = async ({
 			fit: fit,
 			position: position,
 		})
-
+		.webp()
+		.webp({ lossless: true, quality: 80, alphaQuality: 80, force: false })
 		.toBuffer();
 };
 
