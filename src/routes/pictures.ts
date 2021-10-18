@@ -5,7 +5,7 @@ import fs from "fs";
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import { ResizeOptions } from "sharp";
-import { resize } from "../utils";
+import { redis, resize } from "../utils";
 
 interface MulterRequest extends Request {
 	file: any;
@@ -65,12 +65,21 @@ const mime: Record<string, string> = {
 	js: "application/javascript",
 };
 
+const cached_folder = "pictures/cached/";
+
 type PictureQuery = Request["query"] & {
 	w: string;
 	h: string;
 	fit: ResizeOptions["fit"];
 	position: ResizeOptions["position"];
 	greyscale: boolean;
+};
+
+const id = () => {
+	// Math.random should be unique because of its seeding algorithm.
+	// Convert it to base 36 (numbers + letters), and grab the first 9 characters
+	// after the decimal.
+	return "_" + Math.random().toString(36).substr(2, 9);
 };
 
 router.get("/:picture", async (req: Request, res: Response) => {
@@ -93,32 +102,55 @@ router.get("/:picture", async (req: Request, res: Response) => {
 	if (type.substring(0, 6) !== "image/") {
 		return res.status(403).end("Forbidden");
 	} else {
-		if (width === 0 && height === 0) {
-			const s = fs.createReadStream(file);
-			s.on("open", () => {
-				res.set("Content-Type", type);
-				s.pipe(res);
-			});
-			s.on("error", () => {
-				res.set("Content-Type", "text/plain");
-				res.status(404).end("Not found");
-			});
-		} else {
-			try {
-				const resized = await resize({
-					path: file,
-					width,
-					height,
-					fit,
-					position,
-					greyscale,
-				});
+		try {
+			const parameters = {
+				path: file,
+				width,
+				height,
+				fit,
+				position,
+				greyscale,
+			};
+			const getPicture = async () => {
+				console.log("not cached");
+				const resized = await resize(parameters);
+				const pathToFile = id() + path.extname(file.toLowerCase());
+				fs.writeFile(
+					path.join(cached_folder, pathToFile),
+					resized,
+					(err) => {
+						if (err) {
+							return console.log(err);
+						} else {
+							redis.set(JSON.stringify(parameters), pathToFile);
+						}
+					}
+				);
+
 				res.set("Content-Type", type);
 				res.status(200).end(resized);
-			} catch (err) {
-				console.log(err);
-				res.status(500).end("Internal server error");
-			}
+			};
+			redis.get(JSON.stringify(parameters), async (_, value) => {
+				if (value !== null) {
+					console.log("cache hit ", value);
+					res.set("Content-Type", type);
+					res.status(200).sendFile(
+						value,
+						{ root: cached_folder },
+						(err) => {
+							if (err) {
+								console.log(err);
+								getPicture();
+							}
+						}
+					);
+				} else {
+					getPicture();
+				}
+			});
+		} catch (err) {
+			console.log(err);
+			res.status(500).end("Internal server error");
 		}
 	}
 });
