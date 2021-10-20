@@ -20,9 +20,9 @@ app.use(express.json());
 const host = process.env.HOST || "http://localhost";
 const port = process.env.PORT || "8000";
 
+// app.use("/pictures", express.static("pictures"));
+app.use("/pictures", Pictures);
+
 app.listen(port, () => {
 	console.log(`⚡️ Server started at ${host}:${port} ⚡️`);
 });
-
-// app.use("/pictures", express.static("pictures"));
-app.use("/pictures", Pictures);

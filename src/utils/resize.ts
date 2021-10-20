@@ -1,5 +1,6 @@
 // https://sharp.pixelplumbing.com/api-resize
 import sharp, { ResizeOptions } from "sharp";
+import { compression } from "../constants";
 
 interface resizeProps {
 	path: string;
@@ -26,7 +27,7 @@ const resize = async ({
 			position: position,
 		})
 		.webp()
-		.webp({ lossless: true, quality: 80, alphaQuality: 80, force: false })
+		.webp(compression)
 		.toBuffer();
 };
 

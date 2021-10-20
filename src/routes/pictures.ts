@@ -5,14 +5,27 @@ import fs from "fs";
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import { ResizeOptions } from "sharp";
-import { redis, resize } from "../utils";
+import { resize, Cache } from "../utils";
+import {
+	mime,
+	picture_folder,
+	cached_folder,
+	max_upload_size,
+	cached_size,
+} from "../constants";
+
+const cache = new Cache(cached_size);
 
 interface MulterRequest extends Request {
 	file: any;
 }
 
 const fileFilter = (req: unknown, file: { mimetype: string }, cb: any) => {
-	if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
+	if (
+		file.mimetype === mime.jpg ||
+		file.mimetype === mime.png ||
+		file.mimetype === mime.webp
+	) {
 		cb(null, true);
 	} else {
 		cb(new Error("file type " + file.mimetype + " not supported"), false);
@@ -21,7 +34,7 @@ const fileFilter = (req: unknown, file: { mimetype: string }, cb: any) => {
 
 const storage = multer.diskStorage({
 	destination: function (req: any, file: { originalname: string }, cb: any) {
-		cb(null, "pictures/");
+		cb(null, picture_folder);
 	},
 
 	filename: function (req: any, file: { originalname: string }, cb: any) {
@@ -32,7 +45,7 @@ const storage = multer.diskStorage({
 const upload = multer({
 	storage,
 	limits: {
-		fileSize: 1024 * 1024 * 5, // accept 5mb files max
+		fileSize: max_upload_size,
 	},
 	fileFilter,
 });
@@ -53,20 +66,6 @@ router.post(
 		}
 	}
 );
-
-const mime: Record<string, string> = {
-	html: "text/html",
-	txt: "text/plain",
-	css: "text/css",
-	gif: "image/gif",
-	jpg: "image/jpeg",
-	png: "image/png",
-	svg: "image/svg+xml",
-	webp: "image/webp",
-	js: "application/javascript",
-};
-
-const cached_folder = "pictures/cached/";
 
 type PictureQuery = Request["query"] & {
 	w: string;
@@ -96,8 +95,7 @@ router.get("/:picture", async (req: Request, res: Response) => {
 	} = query as PictureQuery;
 	const width = w !== "0" ? parseInt(w) : undefined;
 	const height = h !== "0" ? parseInt(h) : undefined;
-	// res.sendFile(path, { root: "pictures/" });
-	const file = "pictures/" + picture;
+	const file = picture_folder + picture;
 	const type =
 		mime[path.extname(file.toLowerCase()).slice(1)] || "text/plain";
 	if (type.substring(0, 6) !== "image/") {
@@ -122,8 +120,26 @@ router.get("/:picture", async (req: Request, res: Response) => {
 						if (err) {
 							console.log(err);
 						} else {
-							// await redis.del(JSON.stringify({ parameters }));
-							redis.set(JSON.stringify(parameters), pathToFile);
+							const key = JSON.stringify(parameters);
+							cache.set(
+								`picture:${key}`,
+								pathToFile,
+								(_, expired) => {
+									if (expired !== undefined) {
+										fs.unlink(
+											path.join(
+												cached_folder,
+												expired.value
+											),
+											(err) => {
+												if (err) {
+													console.log(err);
+												}
+											}
+										);
+									}
+								}
+							);
 						}
 					}
 				);
@@ -131,10 +147,10 @@ router.get("/:picture", async (req: Request, res: Response) => {
 				res.set("Content-Type", "image/webp");
 				res.status(200).end(resized);
 			};
-			redis.get(JSON.stringify(parameters), async (_, value) => {
-				if (value !== null) {
+			const key = JSON.stringify(parameters);
+			cache.get(`picture:${key}`, async (_, value: string) => {
+				if (value !== null && value !== undefined) {
 					// is cached
-					// console.log("cached ", value);
 					res.set("Content-Type", "image/webp");
 					res.status(200).sendFile(
 						value,

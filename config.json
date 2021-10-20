@@ -1,0 +1,13 @@
+{
+	"version": "0.1.0",
+	"maxUpload": 2.5,
+	"pictureFolder": "pictures/",
+	"cachedFolder": "pictures/cached/",
+	"cacheSize": 2,
+	"compression": {
+		"lossless": true,
+		"quality": 80,
+		"alphaQuality": 80,
+		"force": false
+	}
+}
