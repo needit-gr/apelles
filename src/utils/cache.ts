@@ -22,9 +22,9 @@ class Cache {
 		if (this.load() == false) {
 			this.max = max;
 		}
-		cron.schedule("0 * * * *", () => {
-			this.save();
-		});
+		// cron.schedule("0 * * * *", () => {
+		// 	this.save();
+		// });
 	}
 	get(key: string, callback: GetCB = () => {}): string | undefined {
 		const value = this.node.get(key);

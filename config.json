@@ -3,11 +3,10 @@
 	"maxUpload": 2.5,
 	"pictureFolder": "pictures/",
 	"cachedFolder": "pictures/cached/",
-	"cacheSize": 2,
+	"cachedFolderGcp": "cached/",
+	"cacheSize": 10000,
 	"compression": {
-		"lossless": true,
-		"quality": 80,
-		"alphaQuality": 80,
-		"force": false
+		"quality": 60,
+		"force": true
 	}
 }
